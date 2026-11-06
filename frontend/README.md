@@ -1,46 +1,36 @@
-# Getting Started with Create React App
+# ContractorFoil frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React 18 and TypeScript SPA, built with Vite. Run setup and the local API using the [repository guide](../README.md#run-locally).
 
-## Available Scripts
+From the repository root:
 
-In the project directory, you can run:
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start Vite at `http://127.0.0.1:5173` |
+| `npm run test --prefix frontend` | Run Vitest once |
+| `npm run test:watch --prefix frontend` | Watch frontend tests |
+| `npm run typecheck` | Check TypeScript |
+| `npm run build` | Type check and build `frontend/dist` |
+| `npm run preview --prefix frontend` | Preview the build at `http://127.0.0.1:4173` |
 
-### `npm start`
+The development and preview servers use strict ports. If a port is occupied, stop the other process rather than assuming Vite moved to another port. Allow the preview origin in the local API's `CORS_ORIGINS` when using it.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Browser configuration
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+Copy `.env.example` to `.env` in this directory. Vite reads these settings when the dev server starts or the bundle is built; restart or rebuild after changing them. Every `VITE_` value is public browser configuration.
 
-### `npm test`
+| Variable | Behavior |
+| --- | --- |
+| `VITE_API_URL` | API origin, without `/api`. Development defaults to `http://127.0.0.1:5000`; a blank production value uses the frontend origin and requires separately configured API routing. |
+| `VITE_USE_RECAPTCHA` | Only the exact value `true` enables registration CAPTCHA. Defaults to disabled. |
+| `VITE_RECAPTCHA_SITE_KEY` | Public reCAPTCHA v3 site key, required when browser CAPTCHA is enabled. |
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Never put `JWT_SECRET`, `MONGO_URI`, or a reCAPTCHA secret key in frontend configuration. See [hosting](../docs/hosting.md) before building for a remote API.
 
-### `npm run build`
+## Client boundaries
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+`src/services/api.ts` owns HTTP requests and session storage. Successful login and registration save a session; `/api/auth/me` verifies the current account. Authentication and record ownership are enforced by the API.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+`src/domain/contractors.ts` owns draft conversion, sparse updates, search, sorting, and display formatting. Reuse these helpers when changing forms. An unrelated edit must preserve missing values, decimal precision, and an existing non-midnight contact timestamp. Explicitly clearing a date or price sends `null`.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+The client sends mutations once. An `ApiError` with `ambiguous: true` means the server may have saved the request despite the failed response. Preserve the draft and reconcile the saved data before offering another create action.

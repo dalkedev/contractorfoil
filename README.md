@@ -1,47 +1,62 @@
 # ContractorFoil
 
-### ContractorFoil to aplikacja webowa umożliwiająca zarządzanie kontrahentami, śledzenie cen oraz organizację pracy. Projekt wykorzystuje Next.js, Node.js, Express.js oraz MongoDB. Aplikacja obsługuje autoryzację użytkowników, przechowywanie kontrahentów i powiadomienia Web Push.
+ContractorFoil keeps company contact details, notes, a contact date, and current material prices in one workspace. Each account manages its own records. Prices use PLN/kg.
 
-# Funkcjonalności
+The frontend is a React and TypeScript SPA built with Vite. The API uses Express, Mongoose, MongoDB, and JWT authentication.
 
-Rejestracja i logowanie – użytkownicy mogą tworzyć konta i logować się do aplikacji.
+## Run locally
 
-Zarządzanie kontrahentami – dodawanie, edytowanie i usuwanie kontrahentów.
+Use Node **24.22.2**, npm **11.19.1**, and a local MongoDB instance listening on `127.0.0.1:27017`. Runtime versions are recorded in `.nvmrc`, `.node-version`, and the package manifests.
 
-Historia kontaktów – przechowywanie daty ostatniego kontaktu oraz notatek.
+From the repository root:
 
-Ceny kontrahentów – śledzenie zmian w cenach i ich wizualizacja na wykresach.
+```sh
+npm run setup
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
 
-Google Maps – podgląd lokalizacji kontrahenta.
+Replace the `JWT_SECRET` placeholder in `backend/.env` with a random local signing secret. Keep the local database URI and CAPTCHA disabled for local development.
 
-Wyszukiwanie kontrahentów – szybkie filtrowanie według nazwy.
+Start the API:
 
-Powiadomienia Web Push – przypomnienia o zaplanowanych kontaktach.
+```sh
+npm run dev:api
+```
 
+In another terminal, start the frontend:
 
-# Technologie
+```sh
+npm run dev
+```
 
-## Frontend:
+Open `http://127.0.0.1:5173` and register a local account. The frontend uses `http://127.0.0.1:5000` for the API during development unless `VITE_API_URL` is set. It has no production API fallback.
 
-Next.js – framework React do renderowania stron
+## Working with records
 
-TypeScript – statyczne typowanie kodu
+- Search and sort Companies, then open a record to view or edit its contact details, notes, and current prices.
+- Keep NIP and phone numbers as strings so leading zeroes and formatting survive.
+- A zero price is a recorded value; an unset price is shown as `Not set`. Display formatting does not change stored precision.
+- Contact date is optional and has a neutral meaning. Editing another field preserves an existing timestamp and any untouched optional values.
+- If a save response is lost, check saved records before repeating the action. Mutations are never retried automatically.
 
-Tailwind CSS – narzędzie do stylizacji UI
+## Check changes
 
-## Backend:
+Start an isolated local MongoDB instance for the backend suite as described in [local operation](docs/local-operation.md#run-checks), then run:
 
-Node.js – środowisko uruchomieniowe JavaScript
+```sh
+npm run check
+```
 
-Express.js – framework backendowy dla Node.js
+This runs backend and frontend tests, frontend type checking, and the production build. Individual commands are `npm test`, `npm run typecheck`, and `npm run build`. The build output is `frontend/dist`.
 
-MongoDB – nierelacyjna baza danych
+Use fictional local accounts and records for tests and screenshots. Do not use a production API or database for validation.
 
-## Inne:
+## Documentation
 
-JWT – autoryzacja użytkowników
+- [Local operation and configuration](docs/local-operation.md)
+- [API and stored-value semantics](docs/api.md)
+- [Frontend hosting and deep links](docs/hosting.md)
+- [Frontend development](frontend/README.md)
 
-Google reCAPTCHA – ochrona przed botami
-
-Web Push API – powiadomienia push
-
+The existing license declarations are retained in the package manifests: MIT at the repository root and ISC in the backend package.
