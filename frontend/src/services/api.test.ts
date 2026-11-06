@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from './api';
 
 const session = { _id: 'user-1', name: 'River User', email: 'river@example.test', token: 'opaque-signed-token' };
@@ -12,14 +12,101 @@ beforeEach(() => {
   vi.stubEnv('VITE_USE_RECAPTCHA', 'false');
 });
 
+describe('request deadlines', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const stalledFetch = () => vi.fn((_input: RequestInfo | URL, options?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true });
+    }));
+
+  it.each(['read', 'create'] as const)('settles a stalled %s by the deadline without retrying', async (kind) => {
+    const fetcher = stalledFetch();
+    vi.stubGlobal('fetch', fetcher);
+    const rejected = vi.fn();
+    const request = kind === 'read' ? api.fetchContractors() : api.addContractor(contractor);
+    void request.catch(rejected);
+
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(rejected).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(rejected).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'ApiError', status: null, ambiguous: kind === 'create',
+      message: expect.stringMatching(/timed out/i),
+    }));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['read', 'create'] as const)('keeps the deadline active while a %s response body stalls', async (kind) => {
+    const fetcher = vi.fn((_input: RequestInfo | URL, options?: RequestInit) => Promise.resolve(
+      new Response(new ReadableStream({
+        start(stream) {
+          options?.signal?.addEventListener('abort', () => stream.error(options.signal?.reason), { once: true });
+        },
+      }), { status: kind === 'read' ? 200 : 201 }),
+    ));
+    vi.stubGlobal('fetch', fetcher);
+    const rejected = vi.fn();
+    const request = kind === 'read' ? api.fetchContractors() : api.addContractor(contractor);
+    void request.catch(rejected);
+
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(rejected).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'ApiError', status: kind === 'read' ? 200 : 201, ambiguous: kind === 'create',
+      message: expect.stringMatching(/timed out/i),
+    }));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares the total deadline between delayed headers and a stalled body', async () => {
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, options?: RequestInit) =>
+      new Promise<Response>((resolve) => {
+        setTimeout(() => resolve(new Response(new ReadableStream({
+          start(stream) {
+            options?.signal?.addEventListener('abort', () => stream.error(options.signal?.reason), { once: true });
+          },
+        }))), 19_000);
+      })));
+    const rejected = vi.fn();
+    void api.fetchContractors().catch(rejected);
+
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(rejected).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(rejected).toHaveBeenCalledWith(expect.objectContaining({ name: 'ApiError', ambiguous: false }));
+  });
+
+  it('forwards caller cancellation immediately and clears the later deadline', async () => {
+    vi.stubGlobal('fetch', stalledFetch());
+    const controller = new AbortController();
+    const cancellation = new DOMException('Left the company page', 'AbortError');
+    const rejected = vi.fn();
+    void api.fetchContractors(controller.signal).catch(rejected);
+
+    controller.abort(cancellation);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(rejected).toHaveBeenCalledWith(cancellation);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('clears the deadline after a successful request', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([contractor])));
+    expect(await api.fetchContractors()).toEqual([contractor]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
 describe('API transport', () => {
   it('uses the local development API and preserves the list document shape', async () => {
     const fetcher = vi.fn().mockResolvedValue(json([contractor]));
     vi.stubGlobal('fetch', fetcher);
     localStorage.setItem('userToken', session.token);
-    const controller = new AbortController();
-    expect(await api.fetchContractors(controller.signal)).toEqual([contractor]);
-    expect(fetcher).toHaveBeenCalledWith('http://127.0.0.1:5000/api/contractors', expect.objectContaining({ method: 'GET', signal: controller.signal, headers: expect.objectContaining({ Authorization: 'Bearer opaque-signed-token' }) }));
+    expect(await api.fetchContractors()).toEqual([contractor]);
+    expect(fetcher).toHaveBeenCalledWith('http://127.0.0.1:5000/api/contractors', expect.objectContaining({ method: 'GET', headers: expect.objectContaining({ Authorization: 'Bearer opaque-signed-token' }) }));
   });
 
   it('uses a configured origin without duplicate slashes', async () => {

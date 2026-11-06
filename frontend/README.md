@@ -34,3 +34,5 @@ Never put `JWT_SECRET`, `MONGO_URI`, or a reCAPTCHA secret key in frontend confi
 `src/domain/contractors.ts` owns draft conversion, sparse updates, search, sorting, and display formatting. Reuse these helpers when changing forms. An unrelated edit must preserve missing values, decimal precision, and an existing non-midnight contact timestamp. Explicitly clearing a date or price sends `null`.
 
 The client sends mutations once. An `ApiError` with `ambiguous: true` means the server may have saved the request despite the failed response. Preserve the draft and reconcile the saved data before offering another create action.
+
+Each request has a 20-second total deadline, covering both response headers and the JSON body. A timed-out read can be retried deliberately; leaving a page still cancels its read normally. A timed-out write may already have reached the server, so its outcome remains uncertain and the form requires checking saved records before another submission. Aborting a browser request does not undo a server-side write. No request is retried automatically.

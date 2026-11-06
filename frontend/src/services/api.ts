@@ -1,6 +1,7 @@
 import type { AuthSession, Contractor, ContractorInput, ContractorPatch, FieldErrors, User } from '../types';
 
 const SESSION_KEY = 'contractorfoil.session';
+const REQUEST_TIMEOUT_MS = 20_000;
 
 export class ApiError extends Error {
   readonly status: number | null;
@@ -64,27 +65,55 @@ async function request<T>(path: string, method = 'GET', body?: unknown, signal?:
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  let response: Response;
+  const controller = new AbortController();
+  let timedOut = false;
+  const forwardCancellation = () => controller.abort(signal?.reason);
+  if (signal?.aborted) forwardCancellation();
+  else signal?.addEventListener('abort', forwardCancellation, { once: true });
+  const timeout = setTimeout(() => {
+    if (controller.signal.aborted) return;
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
   try {
-    response = await fetch(`${apiBase()}${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}), ...(signal ? { signal } : {}) });
-  } catch (error) {
-    if (!mutation && error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') throw error;
-    throw new ApiError(mutation ? 'The response was lost. Check the saved records before trying again.' : 'Could not reach the server. Please try again.', null, undefined, mutation);
-  }
+    let response: Response;
+    try {
+      if (controller.signal.aborted) throw controller.signal.reason;
+      response = await fetch(`${apiBase()}${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal: controller.signal });
+    } catch (error) {
+      if (!mutation && !timedOut) {
+        if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') throw error;
+        if (controller.signal.aborted) throw controller.signal.reason;
+      }
+      const message = timedOut
+        ? (mutation ? 'The request timed out. Check the saved records before trying again.' : 'The request timed out. Please try again.')
+        : (mutation ? 'The response was lost. Check the saved records before trying again.' : 'Could not reach the server. Please try again.');
+      throw new ApiError(message, null, undefined, mutation);
+    }
 
-  let data: unknown;
-  try {
-    data = await response.json();
-  } catch (error) {
-    if (!mutation && error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') throw error;
-    throw new ApiError(response.ok ? 'The server returned an unreadable response.' : 'The request could not be completed.', response.status, undefined, mutation && (response.ok || response.status >= 500));
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch (error) {
+      if (!mutation && !timedOut) {
+        if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') throw error;
+        if (controller.signal.aborted) throw controller.signal.reason;
+      }
+      const message = timedOut
+        ? (mutation ? 'The request timed out. Check the saved records before trying again.' : 'The request timed out. Please try again.')
+        : (response.ok ? 'The server returned an unreadable response.' : 'The request could not be completed.');
+      throw new ApiError(message, response.status, undefined, mutation && (timedOut || response.ok || response.status >= 500));
+    }
+    if (!response.ok) {
+      const error = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+      const message = typeof error.message === 'string' && error.message ? error.message.slice(0, 300) : 'The request could not be completed.';
+      throw new ApiError(message, response.status, fieldErrors(error.fields), mutation && response.status >= 500);
+    }
+    return data as T;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', forwardCancellation);
   }
-  if (!response.ok) {
-    const error = data && typeof data === 'object' ? data as Record<string, unknown> : {};
-    const message = typeof error.message === 'string' && error.message ? error.message.slice(0, 300) : 'The request could not be completed.';
-    throw new ApiError(message, response.status, fieldErrors(error.fields), mutation && response.status >= 500);
-  }
-  return data as T;
 }
 
 async function authenticate(path: string, input: object): Promise<AuthSession> {

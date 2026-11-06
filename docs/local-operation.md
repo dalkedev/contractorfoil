@@ -99,3 +99,4 @@ To enable reCAPTCHA v3, configure the public site key and `VITE_USE_RECAPTCHA=tr
 | Tests cannot connect | A disposable MongoDB instance must be listening on the configured loopback port. |
 | Session is rejected | Sign in again. Expired, invalid, or deleted-account tokens return `401`. |
 | Save response is lost | Retain the draft and inspect or refresh saved records before repeating a mutation. |
+| Request times out | The browser stops waiting after 20 seconds, including response-body transfer. Retry a read deliberately. For a write, check saved records first: the server may already have committed it. |
