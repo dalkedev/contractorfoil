@@ -11,7 +11,19 @@ const { startServer } = require('../server');
 
 const secret = 'fictional-lifecycle-signing-key-for-tests';
 const databaseName = `cf_test_lifecycle_${process.pid}_${Date.now()}`;
-const mongoUri = `mongodb://127.0.0.1:27281/${databaseName}`;
+const invalidMongoUri = 'Tests require a loopback-only MongoDB URI with an explicit cf_test_ database';
+let configuredMongo;
+try {
+  configuredMongo = new URL(process.env.CF_TEST_MONGO_URI || 'mongodb://127.0.0.1:27281/cf_test_lifecycle');
+} catch { throw new Error(invalidMongoUri); }
+if (!['127.0.0.1', 'localhost', '[::1]'].includes(configuredMongo.hostname) ||
+    configuredMongo.protocol !== 'mongodb:' || !/^\/cf_test_[a-zA-Z0-9_]+$/.test(configuredMongo.pathname) ||
+    configuredMongo.username || configuredMongo.password || configuredMongo.search || configuredMongo.hash) {
+  throw new Error(invalidMongoUri);
+}
+// The override selects an isolated server; lifecycle tests keep their own unique database.
+configuredMongo.pathname = `/${databaseName}`;
+const mongoUri = configuredMongo.toString();
 const backend = path.resolve(__dirname, '..');
 
 async function freePort() {
@@ -142,11 +154,15 @@ it('serves after a real database connection and shuts down on SIGTERM', { timeou
   }
 });
 
-it('bounds shutdown while an incomplete HTTP request is still active', { timeout: 5000 }, async () => {
+it('runs the configured isolated MongoDB lifecycle with bounded HTTP shutdown', { timeout: 5000 }, async () => {
   const runtime = await startServer({ ...readConfig({ JWT_SECRET: secret, MONGO_URI: mongoUri, CORS_ORIGINS: '' }), port: 0, shutdownTimeoutMs: 120 });
   const socket = net.connect(runtime.server.address().port, '127.0.0.1');
   socket.on('error', () => {});
   try {
+    const configured = new URL(process.env.CF_TEST_MONGO_URI || 'mongodb://127.0.0.1:27281/cf_test_default');
+    assert.equal(mongoose.connection.port, Number(configured.port || 27017));
+    assert.match(mongoose.connection.name, /^cf_test_lifecycle_\d+_\d+$/);
+    assert.notEqual(mongoose.connection.name, configured.pathname.slice(1));
     await once(socket, 'connect');
     const started = once(runtime.server, 'request');
     socket.write('POST /api/auth/login HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 10000\r\n\r\n{');
@@ -158,6 +174,7 @@ it('bounds shutdown while an incomplete HTTP request is still active', { timeout
   } finally {
     socket.destroy();
     runtime.server.closeAllConnections();
+    await runtime.stop().catch(() => {});
     await mongoose.disconnect();
   }
 });
