@@ -15,15 +15,18 @@ export interface Contractor {
   nip: string;
   address: string;
   contactDate?: string | null;
-  notes?: string;
+  notes?: string | null;
   priceColorless?: number | null;
   priceColor?: number | null;
-  typeUnknown?: string;
+  typeUnknown?: string | null;
   priceUnknown?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
 
-export type ContractorInput = Omit<Contractor, '_id' | 'createdAt' | 'updatedAt'>;
+export type ContractorInput = Omit<
+  Contractor,
+  "_id" | "createdAt" | "updatedAt"
+>;
 export type ContractorPatch = Partial<ContractorInput> & { _id?: string };
 export type FieldErrors = Record<string, string>;
