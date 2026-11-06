@@ -61,6 +61,7 @@ function CompanyForm({ original }: { original?: Contractor }) {
   );
   const [fields, setFields] = useState<FieldErrors>({});
   const [error, setError] = useState("");
+  const [errorAttempt, setErrorAttempt] = useState(0);
   const [pending, setPending] = useState(false);
   const [uncertain, setUncertain] = useState<
     ContractorInput | ContractorPatch | null
@@ -73,6 +74,8 @@ function CompanyForm({ original }: { original?: Contractor }) {
   const { listSearch, upsert, setNotice } = useWorkspace();
   const navigate = useNavigate();
   const errorRef = useRef<HTMLDivElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const checkSavedRef = useRef<HTMLButtonElement>(null);
   const submitting = useRef(false);
   const bypass = useRef(false);
   const dirty =
@@ -93,7 +96,11 @@ function CompanyForm({ original }: { original?: Contractor }) {
   }, [dirty]);
   useEffect(() => {
     if (error) errorRef.current?.focus();
-  }, [error]);
+  }, [error, errorAttempt]);
+  const showError = (message: string) => {
+    setError(message);
+    setErrorAttempt((attempt) => attempt + 1);
+  };
   const saved = (record: Contractor) => {
     upsert(record);
     setNotice(original ? "Changes saved." : "Company added.");
@@ -113,7 +120,7 @@ function CompanyForm({ original }: { original?: Contractor }) {
     } catch (failure) {
       if (failure instanceof ContractorDraftError) {
         setFields(failure.fields);
-        setError("Check the highlighted fields before saving.");
+        showError("Check the highlighted fields before saving.");
       }
       return;
     }
@@ -133,11 +140,11 @@ function CompanyForm({ original }: { original?: Contractor }) {
         setChecked(false);
         setMatches([]);
         setCheckMessage("");
-        setError(
+        showError(
           "Could not confirm the save. Check the saved records before trying again. Your draft is still here.",
         );
       } else {
-        setError(
+        showError(
           errorMessage(
             failure,
             "Could not save the company. Please try again.",
@@ -312,6 +319,7 @@ function CompanyForm({ original }: { original?: Contractor }) {
                 creating a duplicate or repeating an update.
               </p>
               <button
+                ref={checkSavedRef}
                 type="button"
                 className="button secondary"
                 onClick={() => void reconcile()}
@@ -470,6 +478,7 @@ function CompanyForm({ original }: { original?: Contractor }) {
                 Cancel
               </button>
               <button
+                ref={saveRef}
                 type="submit"
                 className="button primary"
                 disabled={pending || Boolean(uncertain) || needSignIn}
@@ -506,6 +515,9 @@ function CompanyForm({ original }: { original?: Contractor }) {
               setSignIn(false);
               setNeedSignIn(false);
               setError("");
+              requestAnimationFrame(() => {
+                (uncertain ? checkSavedRef.current : saveRef.current)?.focus();
+              });
             }}
           />
         </section>

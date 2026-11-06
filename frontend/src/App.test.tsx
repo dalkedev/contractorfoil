@@ -271,6 +271,20 @@ it("prevents repeated submissions while a save is pending", async () => {
     await screen.findByRole("heading", { name: "Riverbank Polymers" }),
   ).toBeInTheDocument();
 });
+it("focuses the error summary on each invalid submission without stealing focus while correcting", async () => {
+  open("/contractors/new");
+  await userEvent.click(await screen.findByRole("button", { name: "Add company" }));
+  expect(await screen.findByRole("alert")).toHaveFocus();
+  const name = screen.getByLabelText(/Company name/);
+  await userEvent.type(name, "Partial correction");
+  expect(name).toHaveFocus();
+  await userEvent.click(screen.getByRole("button", { name: "Add company" }));
+
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
+  expect(name).toHaveValue("Partial correction");
+  expect(calls.some(call => call.method === "POST")).toBe(false);
+});
+
 it("requires visible reconciliation before an uncertain creation can be retried", async () => {
   handler = (path, method) =>
     path === "/api/contractors" && method === "POST"
@@ -323,11 +337,13 @@ it("finds a committed company after a lost response instead of repeating creatio
 });
 it("keeps an editing draft during session failure and supports sign-in in place", async () => {
   let failed = false;
-  handler = (_path, method) => {
+  handler = (path, method, body) => {
     if (method === "PUT" && !failed) {
       failed = true;
       return json({ message: "Sign in to continue." }, 401);
     }
+    if (path === "/api/auth/login" && body.password !== "ExamplePassword1!")
+      return json({ message: "Email or password is incorrect." }, 401);
     return undefined;
   };
   open("/contractors/company-1/edit");
@@ -338,6 +354,11 @@ it("keeps an editing draft during session failure and supports sign-in in place"
   await userEvent.click(
     await screen.findByRole("button", { name: "Sign in again" }),
   );
+  expect(screen.getByLabelText("Password")).toHaveFocus();
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong-password" } });
+  await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  await screen.findByText("Email or password is incorrect.");
+  expect(screen.getByLabelText("Password")).toHaveFocus();
   fireEvent.change(screen.getByLabelText("Email address"), {
     target: { value: account.email },
   });
@@ -349,10 +370,37 @@ it("keeps an editing draft during session failure and supports sign-in in place"
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument(),
   );
   expect(screen.getByLabelText("Notes")).toHaveValue("Retain this draft.");
+  await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toHaveFocus());
+  expect(calls.filter(call => call.method === "PUT")).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   await screen.findByRole("heading", { name: company.name });
   expect(screen.getByText("Retain this draft.")).toBeInTheDocument();
 });
+it("returns focus to the safe delete action after inline authentication without repeating deletion", async () => {
+  handler = (path, method, body) => {
+    if (method === "DELETE") return json({ message: "Sign in to continue." }, 401);
+    if (path === "/api/auth/login" && body.password !== "ExamplePassword1!")
+      return json({ message: "Email or password is incorrect." }, 401);
+    return undefined;
+  };
+  open("/contractors/company-1");
+  await userEvent.click(await screen.findByRole("button", { name: "Delete company" }));
+  const dialog = screen.getByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Delete company" }));
+  await userEvent.click(await within(dialog).findByRole("button", { name: "Sign in again" }));
+  fireEvent.change(within(dialog).getByLabelText("Password"), { target: { value: "wrong-password" } });
+  await userEvent.click(within(dialog).getByRole("button", { name: "Sign in" }));
+  await within(dialog).findByText("Email or password is incorrect.");
+  expect(within(dialog).getByLabelText("Password")).toHaveFocus();
+  fireEvent.change(within(dialog).getByLabelText("Password"), { target: { value: "ExamplePassword1!" } });
+  await userEvent.click(within(dialog).getByRole("button", { name: "Sign in" }));
+  await waitFor(() => expect(within(dialog).queryByLabelText("Password")).not.toBeInTheDocument());
+
+  expect(within(dialog).getByRole("button", { name: "Keep company" })).toHaveFocus();
+  expect(calls.filter(call => call.method === "DELETE")).toHaveLength(1);
+  expect(records).toHaveLength(1);
+});
+
 it("cancels a dirty edit deliberately and resets the next edit to saved values", async () => {
   open("/contractors/company-1/edit");
   fireEvent.change(await screen.findByLabelText("Notes"), {
@@ -585,6 +633,7 @@ it.each([
     };
     open(route);
     await screen.findByRole("heading", { name: "Your session expired" });
+    expect(screen.getByLabelText("Password")).toHaveFocus();
     expect(window.location.pathname + window.location.search).toBe(route);
     expect(screen.getByLabelText("Email address")).toHaveValue(account.email);
     expect(screen.getByLabelText("Email address")).toHaveAttribute("readonly");
@@ -598,6 +647,7 @@ it.each([
     expect(
       await screen.findByText("Email or password is incorrect."),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toHaveFocus();
     expect(window.location.pathname + window.location.search).toBe(route);
     expect(
       calls.filter((call) => call.path === resource && call.method === "GET"),
@@ -630,5 +680,6 @@ it.each([
       );
       expect(screen.getByLabelText("Sort companies")).toHaveValue("name-desc");
     }
+    expect(document.getElementById("main-content")).toHaveFocus();
   },
 );

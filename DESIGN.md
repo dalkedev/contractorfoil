@@ -12,6 +12,7 @@ colors:
   rail: "#172f40"
   rail-text: "#cedbe5"
   border: "#dce3e8"
+  control-border: "#718598"
   danger: "#b62935"
   danger-soft: "#fff0f0"
   success: "#21654c"
@@ -79,6 +80,8 @@ Cobalt identifies primary actions, links, keyboard focus and selection. Slate ca
 
 Tokens are defined in `frontend/src/index.css`. Supporting neutral tones separate labels, secondary values and fine rules without adding competing accents.
 
+Resting form controls use a separate slate boundary token with at least 3:1 contrast on the white input surface. Panel separators retain the lighter border token; focus and invalid states keep their cobalt and red treatments.
+
 ## Typography
 
 One system sans-serif family serves headings, controls and data. Fixed sizes keep application density predictable. Prices and dates use tabular numerals. The public introduction uses the same family at a larger scale; app labels never use a display face.
@@ -102,6 +105,8 @@ Controls use 6px radii and minimum 44px heights. Panels use 12px radii. The bran
 ## Components
 
 Primary buttons use cobalt and name the action. Secondary actions use a neutral outlined button. Labels persist above fields; help text and field errors connect through accessible descriptions. Invalid submissions expose an error summary, preserve the draft and provide field links.
+
+Each failed submission returns focus to its summary, including repeated errors. Inline sign-in focuses the editable password and returns there after a failed attempt. Successful renewal returns focus to the next deliberate form action, the safe modal action, or the persistent main region when a protected read reloads. Renewal never repeats a save or deletion automatically.
 
 Create and edit use one routed form. A dirty draft prompts before navigation and warns before browser unload. Save buttons submit once while pending. Confirmed failures preserve input; uncertain writes expose a read-before-retry reconciliation step. Session expiry offers sign-in in place.
 

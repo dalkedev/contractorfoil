@@ -12,6 +12,7 @@
   --color-rail: #172f40;
   --color-rail-text: #cedbe5;
   --color-border: #dce3e8;
+  --color-control-border: #718598;
   --color-primary: #245bd6;
   --color-primary-hover: #1949b8;
   --color-primary-soft: #eaf0ff;
@@ -260,6 +261,7 @@ dd {
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 400;
+  overflow-wrap: anywhere;
 }
 .muted {
   color: var(--color-muted);
@@ -288,10 +290,14 @@ dd {
   gap: 24px;
   margin-bottom: 28px;
 }
+.page-heading > div {
+  min-width: 0;
+}
 .page-description {
   margin-top: 8px;
   color: var(--color-muted);
   font-size: 15px;
+  overflow-wrap: anywhere;
 }
 .page-heading > .button {
   flex-shrink: 0;
@@ -535,7 +541,7 @@ select {
   padding: 10px 12px;
   color: var(--color-ink);
   background: #ffffff;
-  border: 1px solid #bdcbd6;
+  border: 1px solid var(--color-control-border);
   border-radius: var(--radius-control);
   font-size: 14px;
 }
@@ -568,6 +574,8 @@ textarea[aria-invalid="true"] {
 }
 .register-caption p {
   color: #405463;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .register-caption > span {
   color: var(--color-muted);
@@ -1816,6 +1824,7 @@ textarea[aria-invalid="true"] {
     list-style: none;
   }
   .company-cards li {
+    min-width: 0;
     padding: 22px 20px 16px;
     border-top: 1px solid var(--color-border);
   }
@@ -1828,19 +1837,26 @@ textarea[aria-invalid="true"] {
   .company-card-top > .icon {
     width: 17px;
     color: #7f91a0;
+    flex-shrink: 0;
+  }
+  .company-card-top > div {
+    min-width: 0;
   }
   .company-cards .company-title {
     font-size: 16px;
   }
   .company-cards dl {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px 16px;
     margin-top: 24px;
   }
   .company-cards dt {
     font-size: 11px;
     color: var(--color-muted);
+  }
+  .company-cards dl > div {
+    min-width: 0;
   }
   .company-cards dd {
     margin-top: 5px;

@@ -227,6 +227,11 @@ export function ConfirmDialog({
       previous?.focus();
     };
   }, []);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog?.open && !dialog.contains(document.activeElement))
+      cancelRef.current?.focus();
+  });
   return (
     <dialog
       ref={dialogRef}

@@ -19,6 +19,13 @@ export function SignInForm({
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (inline) passwordRef.current?.focus();
+  }, [inline]);
+  useEffect(() => {
+    if (inline && !pending && error) passwordRef.current?.focus();
+  }, [inline, pending, error]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (submitting.current) return;
@@ -60,6 +67,7 @@ export function SignInForm({
         <label htmlFor="signin-password">Password</label>
         <input
           id="signin-password"
+          ref={passwordRef}
           type="password"
           autoComplete="current-password"
           required
