@@ -1,110 +1,38 @@
-const Contractor = require("../models/contractorModel");
+const Contractor = require('../models/contractorModel');
+const { contractorInput, validateId } = require('../validation');
+const { ApiError } = require('../errors');
 
-// Dodawanie kontrahenta
-const addContractor = async (req, res) => {
-  const { name, phone, nip, address, contactDate, notes, priceColorless, priceColor, typeUnknown, priceUnknown } = req.body; // to add something else
-
-  // Sprawdzenie, czy użytkownik jest dostępny z middleware 'protect'
-  if (!req.user) {
-    return res.status(400).json({ message: "User not found, token missing or invalid" });
-  }
-
-  try {
-    const newContractor = await Contractor.create({ // to add something else
-      name,
-      phone,
-      nip,
-      address,
-      contactDate,
-      notes,
-      priceColorless,
-      priceColor,
-      typeUnknown,
-      priceUnknown,
-      user: req.user._id, // Przypisanie użytkownika z middleware
-    });
-
-    res.status(201).json(newContractor);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to add contractor", error });
-  }
+const owned = req => ({ _id: validateId(req.params.id), user: req.user._id });
+const requireRecord = record => {
+  if (!record) throw new ApiError(404, 'CONTRACTOR_NOT_FOUND', 'Contractor not found.');
+  return record;
 };
 
-// Pobieranie kontrahentów
-const getContractors = async (req, res) => {
-  try {
-    const contractors = await Contractor.find({ user: req.user._id });
-    res.status(200).json(contractors);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch contractors", error });
-  }
-};
+async function addContractor(req, res) {
+  const input = contractorInput(req.body);
+  res.status(201).json(await Contractor.create({ ...input, user: req.user._id }));
+}
 
-// Usuwanie kontrahenta
-const deleteContractor = async (req, res) => {
-  const contractorId = req.params.id;
+async function getContractors(req, res) {
+  res.json(await Contractor.find({ user: req.user._id }));
+}
 
-  try {
-    const contractor = await Contractor.findById(contractorId);
+async function getContractorById(req, res) {
+  res.json(requireRecord(await Contractor.findOne(owned(req))));
+}
 
-    if (!contractor || contractor.user.toString() !== req.user._id.toString()) {
-      return res
-          .status(404)
-          .json({ message: "Contractor not found or not authorized" });
-    }
+async function updateContractor(req, res) {
+  const query = owned(req);
+  const input = contractorInput(req.body, { partial: true, id: req.params.id });
+  // No-op legacy echoes do not rewrite timestamps or omitted optional fields.
+  const record = Object.keys(input).length === 0 ? await Contractor.findOne(query) :
+    await Contractor.findOneAndUpdate(query, { $set: input }, { new: true, runValidators: true });
+  res.json(requireRecord(record));
+}
 
-    // Używamy deleteOne zamiast remove
-    await contractor.deleteOne();
-    res.status(200).json({ message: "Contractor deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to delete contractor", error });
-  }
-};
+async function deleteContractor(req, res) {
+  requireRecord(await Contractor.findOneAndDelete(owned(req)));
+  res.json({ message: 'Contractor deleted successfully' });
+}
 
-
-// Aktualizowanie kontrahenta
-const updateContractor = async (req, res) => {
-  const contractorId = req.params.id;
-
-  try {
-    const contractor = await Contractor.findById(contractorId);
-
-    if (!contractor || contractor.user.toString() !== req.user._id.toString()) {
-      return res.status(404).json({ message: "Contractor not found or not authorized" });
-    }
-
-    const updatedContractor = await Contractor.findByIdAndUpdate(
-        contractorId,
-        req.body,
-        { new: true, runValidators: true }
-    );
-
-    res.status(200).json(updatedContractor);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update contractor", error });
-  }
-};
-
-// Pobieranie kontrahenta po ID
-const getContractorById = async (req, res) => {
-  try {
-    const contractor = await Contractor.findById(req.params.id);
-
-    if (!contractor) {
-      return res.status(404).json({ message: 'Contractor not found' });
-    }
-
-    res.status(200).json(contractor);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch contractor', error });
-  }
-};
-
-
-module.exports = {
-  addContractor,
-  getContractors,
-  deleteContractor,
-  updateContractor,
-  getContractorById
-};
+module.exports = { addContractor, getContractors, getContractorById, updateContractor, deleteContractor };

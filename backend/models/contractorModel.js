@@ -8,10 +8,10 @@ const contractorSchema = new mongoose.Schema(
     address: { type: String, required: true },
     contactDate: { type: Date },
     notes: { type: String },
-      priceColorless: { type: Number },
-      priceColor: { type: Number },
-      typeUnknown: {type: String },
-      priceUnknown: { type: Number },
+    priceColorless: { type: Number },
+    priceColor: { type: Number },
+    typeUnknown: { type: String },
+    priceUnknown: { type: Number },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -20,5 +20,7 @@ const contractorSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+contractorSchema.index({ user: 1 });
 
 module.exports = mongoose.model("Contractor", contractorSchema);

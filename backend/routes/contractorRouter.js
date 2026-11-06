@@ -1,28 +1,11 @@
-const express = require("express");
-const {
-  addContractor,
-  getContractors,
-  deleteContractor,
-  updateContractor,
-  getContractorById,
-} = require("../controllers/contractorController");
-const { protect } = require("../middleware/authMiddleware");
-
+const express = require('express');
+const { addContractor, getContractors, deleteContractor, updateContractor, getContractorById } = require('../controllers/contractorController');
+const { protect } = require('../middleware/authMiddleware');
+const { asyncHandler } = require('../errors');
 const router = express.Router();
 
-// Trasa do dodawania kontrahenta
-router.post("/", protect, addContractor);
-
-// Trasa do pobierania kontrahentów
-router.get("/", protect, getContractors);
-
-// Trasa do usuwania kontrahenta
-router.delete("/:id", protect, deleteContractor);
-
-// Trasa do aktualizowania kontrahenta
-router.put("/:id", protect, updateContractor);
-
-// Trasa do pobierania kontrahenta po ID
-router.get('/:id', getContractorById);
+router.use(asyncHandler(protect));
+router.route('/').get(asyncHandler(getContractors)).post(asyncHandler(addContractor));
+router.route('/:id').get(asyncHandler(getContractorById)).put(asyncHandler(updateContractor)).delete(asyncHandler(deleteContractor));
 
 module.exports = router;

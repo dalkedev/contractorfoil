@@ -1,47 +1,80 @@
 # ContractorFoil
 
-### ContractorFoil to aplikacja webowa umożliwiająca zarządzanie kontrahentami, śledzenie cen oraz organizację pracy. Projekt wykorzystuje Next.js, Node.js, Express.js oraz MongoDB. Aplikacja obsługuje autoryzację użytkowników, przechowywanie kontrahentów i powiadomienia Web Push.
+ContractorFoil keeps company contact details, notes, a contact date, and current material prices in one workspace. Each account manages its own records. Prices use PLN/kg.
 
-# Funkcjonalności
+The frontend is a React and TypeScript SPA built with Vite. The API uses Express, Mongoose, MongoDB, and JWT authentication.
 
-Rejestracja i logowanie – użytkownicy mogą tworzyć konta i logować się do aplikacji.
+The first tagged preview is **1.0.0-rc.1**, intended for local testing and review. The Vercel frontend build is verified; hosted API integration remains unverified. See the [changelog](CHANGELOG.md) and [hosting guide](docs/hosting.md).
 
-Zarządzanie kontrahentami – dodawanie, edytowanie i usuwanie kontrahentów.
+## Workspace
 
-Historia kontaktów – przechowywanie daty ostatniego kontaktu oraz notatek.
+Desktop and mobile views use the same company records and current prices. The screenshots below show fictional data from a local instance.
 
-Ceny kontrahentów – śledzenie zmian w cenach i ich wizualizacja na wykresach.
+![Companies workspace on desktop](docs/images/companies-desktop.png)
 
-Google Maps – podgląd lokalizacji kontrahenta.
+<details>
+<summary>Mobile workspace</summary>
 
-Wyszukiwanie kontrahentów – szybkie filtrowanie według nazwy.
+<img src="docs/images/companies-mobile.png" alt="Companies workspace on mobile" width="390" />
 
-Powiadomienia Web Push – przypomnienia o zaplanowanych kontaktach.
+</details>
 
+## Run locally
 
-# Technologie
+Use Node **24.22.2**, npm **11.19.1**, and a local MongoDB instance listening on `127.0.0.1:27017`. Runtime versions are recorded in `.nvmrc`, `.node-version`, and the package manifests.
 
-## Frontend:
+From the repository root:
 
-Next.js – framework React do renderowania stron
+```sh
+npm run setup
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
 
-TypeScript – statyczne typowanie kodu
+Replace the `JWT_SECRET` placeholder in `backend/.env` with a random local signing secret. Keep the local database URI and CAPTCHA disabled for local development.
 
-Tailwind CSS – narzędzie do stylizacji UI
+Start the API:
 
-## Backend:
+```sh
+npm run dev:api
+```
 
-Node.js – środowisko uruchomieniowe JavaScript
+In another terminal, start the frontend:
 
-Express.js – framework backendowy dla Node.js
+```sh
+npm run dev
+```
 
-MongoDB – nierelacyjna baza danych
+Open `http://127.0.0.1:5173` and register a local account. The frontend uses `http://127.0.0.1:5000` for the API during development unless `VITE_API_URL` is set. It has no production API fallback.
 
-## Inne:
+## Working with records
 
-JWT – autoryzacja użytkowników
+- Search and sort Companies, then open a record to view or edit its contact details, notes, and current prices.
+- Keep NIP and phone numbers as strings so leading zeroes and formatting survive.
+- A zero price is a recorded value; an unset price is shown as `Not set`. Display formatting does not change stored precision.
+- Contact date is optional and has a neutral meaning. Editing another field preserves an existing timestamp and any untouched optional values.
+- If a save response is lost, check saved records before repeating the action. Mutations are never retried automatically.
+- Requests stop waiting after 20 seconds. A timed-out write may already be saved; keep the draft and check saved records first.
+- Changing accounts or signing out in another tab ends this tab's protected session and clears its unsaved drafts. Same-account recovery within a form keeps the draft.
 
-Google reCAPTCHA – ochrona przed botami
+## Check changes
 
-Web Push API – powiadomienia push
+Start an isolated local MongoDB instance for the backend suite as described in [local operation](docs/local-operation.md#run-checks), then run:
 
+```sh
+npm run check
+```
+
+This runs backend and frontend tests, frontend type checking, and the production build. Individual commands are `npm test`, `npm run typecheck`, and `npm run build`. The build output is `frontend/dist`.
+
+Use fictional local accounts and records for tests and screenshots. Do not use a production API or database for validation.
+
+## Documentation
+
+- [Local operation and configuration](docs/local-operation.md)
+- [API and stored-value semantics](docs/api.md)
+- [Frontend hosting and deep links](docs/hosting.md)
+- [Local verification results and remaining release checks](docs/verification.md)
+- [Frontend development](frontend/README.md)
+
+The existing license declarations are retained in the package manifests: MIT at the repository root and ISC in the backend package.

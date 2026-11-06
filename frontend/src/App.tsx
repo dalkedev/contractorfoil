@@ -1,69 +1,49 @@
-import React from "react";
-import {
-  BrowserRouter as Router,
-  Route,
-  Routes,
-} from "react-router-dom";
-import Login from "./components/Login";
-import Register from "./components/Register";
-import ContractorsPage from "./components/ContractorsPage";
-import PrivateRoute from "./components/PrivateRoute";
-import HomePage from "./components/HomePage";
-import ErrorPage from "./components/ErrorPage";
-import ContractorDetails from "./components/ContractorDetalis";
-import "react-toastify/dist/ReactToastify.css";
-import { ToastContainer } from "react-toastify";
-import Dashboard from "./components/Dashboard"
+import { useState } from "react";
+import { createBrowserRouter, Outlet, RouterProvider } from "react-router-dom";
+import { RequireSession, SessionProvider } from "./context/Session";
+import { WorkspaceProvider } from "./context/Workspace";
+import AppShell from "./components/AppShell";
+import AuthPage from "./pages/AuthPage";
+import HomePage from "./pages/HomePage";
+import CompaniesPage from "./pages/CompaniesPage";
+import CompanyDetailPage from "./pages/CompanyDetailPage";
+import CompanyFormPage from "./pages/CompanyFormPage";
+import OverviewPage from "./pages/OverviewPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
-const App: React.FC = () => {
-  return (
-    <Router>
-        {/* ToastContainer musi być tylko raz w drzewie komponentów */}
-        <ToastContainer position="top-right" autoClose={3000} />
-      <Routes>
-        {/* Domyślna strona główna */}
-        <Route path="/" element={<HomePage />} />
-
-        {/* Publiczne trasy */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-
-        {/* Chroniona trasa - tylko dla zalogowanych użytkowników */}
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-                <Dashboard />
-            </PrivateRoute>
-          }
-        />
-
-        <Route
-          path="/contractors"
-          element={
-            <PrivateRoute>
-              <div>
-                <ContractorsPage/>
-              </div>
-            </PrivateRoute>
-          }
-        />
-
-        {/* Trasa dla szczegółów kontrahenta */}
-        <Route
-            path="/contractors/:id"
-            element={
-              <PrivateRoute>
-                <ContractorDetails />
-              </PrivateRoute>
-            }
-        />
-
-        {/* Jeśli użytkownik wpisze złą trasę, przekierowujemy na stronę główną */}
-        <Route path="*" element={<ErrorPage />}/>
-      </Routes>
-    </Router>
+export default function App() {
+  const [router] = useState(() =>
+    createBrowserRouter([
+      {
+        element: (
+          <SessionProvider>
+            <Outlet />
+          </SessionProvider>
+        ),
+        children: [
+          { path: "/", element: <HomePage /> },
+          { path: "/login", element: <AuthPage /> },
+          { path: "/register", element: <AuthPage register /> },
+          {
+            element: (
+              <RequireSession>
+                <WorkspaceProvider>
+                  <AppShell />
+                </WorkspaceProvider>
+              </RequireSession>
+            ),
+            children: [
+              { path: "/dashboard", element: <OverviewPage /> },
+              { path: "/contractors", element: <CompaniesPage /> },
+              { path: "/contractors/new", element: <CompanyFormPage /> },
+              { path: "/contractors/:id", element: <CompanyDetailPage /> },
+              { path: "/contractors/:id/edit", element: <CompanyFormPage /> },
+            ],
+          },
+          { path: "*", element: <NotFoundPage /> },
+        ],
+      },
+    ]),
   );
-};
-
-export default App;
+  return <RouterProvider router={router} />;
+}

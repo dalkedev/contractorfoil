@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-06T09:29:00.000Z",
+  "title": "Design System: ContractorFoil",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Cobalt action" },
+      "rail": { "role": "neutral", "displayName": "Deep slate" },
+      "canvas": { "role": "neutral", "displayName": "Mineral workspace" },
+      "danger": { "role": "semantic", "displayName": "Destructive red" },
+      "success": { "role": "semantic", "displayName": "Confirmed green" }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Page heading",
+        "purpose": "One primary heading per application page."
+      },
+      "body": {
+        "displayName": "Workspace text",
+        "purpose": "Readable operational content and descriptions."
+      }
+    },
+    "shadows": [
+      {
+        "name": "dialog",
+        "value": "0 18px 80px rgb(10 29 44 / 25%)",
+        "purpose": "Focus-protecting native confirmations only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control",
+        "value": "160ms ease",
+        "purpose": "Control color, border and background feedback."
+      },
+      {
+        "name": "pending",
+        "value": "1.4s ease-in-out infinite alternate",
+        "purpose": "Loading skeleton opacity; disabled under reduced motion."
+      }
+    ],
+    "breakpoints": [
+      { "name": "compact-desktop", "value": "1200px" },
+      { "name": "single-column-details", "value": "1000px" },
+      { "name": "mobile-navigation-and-cards", "value": "767px" },
+      { "name": "stack-form-fields", "value": "420px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The principal action in the current task.",
+      "html": "<button class=\"button primary\">Save changes</button>",
+      "css": ".button{min-height:44px;padding:10px 16px;border:1px solid transparent;border-radius:6px;font:600 14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer;transition:background-color 160ms ease}.primary{background:#245bd6;color:#fff}.primary:hover{background:#1949b8}.primary:active{background:#153e9c}.button:focus-visible{outline:3px solid #245bd6;outline-offset:3px}.button:disabled{opacity:.55;cursor:wait}"
+    },
+    {
+      "name": "Labeled input",
+      "kind": "input",
+      "description": "Persistent label, native input, visible keyboard focus and associated help.",
+      "html": "<div class=\"field\"><label for=\"sample-company\">Company name (required)</label><input id=\"sample-company\" value=\"Northline Materials\" /></div>",
+      "css": ".field{display:flex;flex-direction:column;gap:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.field label{color:#30485b;font-size:13px;font-weight:600}.field input{min-height:44px;padding:10px 12px;color:#20303c;background:#fff;border:1px solid #bdcbd6;border-radius:6px;font-size:14px;line-height:1.55;caret-color:#245bd6}.field input:focus-visible{outline:2px solid #245bd6;outline-offset:1px;border-color:#245bd6}.field input[aria-invalid=true]{border-color:#b62935}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The company reference directory",
+    "overview": "A familiar operational workspace with aligned company identities and prices, deep slate navigation, mineral surfaces and clear distinctions between saved records and drafts.",
+    "keyCharacteristics": [
+      "Stable data alignment",
+      "Readable density",
+      "Familiar controls",
+      "Visible request outcomes"
+    ],
+    "rules": [
+      {
+        "name": "Neutral dates",
+        "body": "Contact dates never imply overdue, upcoming or contact history.",
+        "section": "colors"
+      },
+      {
+        "name": "Precision survives",
+        "body": "Display formatting never rewrites untouched saved values.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Use real records for overview content.",
+      "Preserve drafts on failed saves.",
+      "Keep the primary action clear."
+    ],
+    "donts": [
+      "Do not invent history or metrics.",
+      "Do not decorate work screens with gradients or repeated entrance effects.",
+      "Do not retry ambiguous writes before reconciliation."
+    ]
+  }
+}
