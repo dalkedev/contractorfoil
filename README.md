@@ -52,6 +52,8 @@ Open `http://127.0.0.1:5173` and register a local account. The frontend uses `ht
 - A zero price is a recorded value; an unset price is shown as `Not set`. Display formatting does not change stored precision.
 - Contact date is optional and has a neutral meaning. Editing another field preserves an existing timestamp and any untouched optional values.
 - If a save response is lost, check saved records before repeating the action. Mutations are never retried automatically.
+- Requests stop waiting after 20 seconds. A timed-out write may already be saved; keep the draft and check saved records first.
+- Changing accounts or signing out in another tab ends this tab's protected session and clears its unsaved drafts. Same-account recovery within a form keeps the draft.
 
 ## Check changes
 
@@ -70,6 +72,7 @@ Use fictional local accounts and records for tests and screenshots. Do not use a
 - [Local operation and configuration](docs/local-operation.md)
 - [API and stored-value semantics](docs/api.md)
 - [Frontend hosting and deep links](docs/hosting.md)
+- [Local verification results and remaining release checks](docs/verification.md)
 - [Frontend development](frontend/README.md)
 
 The existing license declarations are retained in the package manifests: MIT at the repository root and ISC in the backend package.
