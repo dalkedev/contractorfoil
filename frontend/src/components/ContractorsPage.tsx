@@ -48,7 +48,7 @@ const ContractorsPage: React.FC = () => {
   useEffect(() => {
     const loadContractors = async () => {
       try {
-        const data = await fetchContractors();
+        const data = (await fetchContractors()) as Contractor[];
         setContractors(data);
         setFilteredContractors(data);
       } catch (error) {
@@ -71,7 +71,7 @@ const ContractorsPage: React.FC = () => {
 
   const handleAddContractor = async (newContractor: Contractor) => {
     try {
-      const addedContractor = await addContractor(newContractor);
+      const addedContractor = (await addContractor(newContractor)) as Contractor;
       const updatedContractors = [...contractors, addedContractor];
       setContractors(updatedContractors);
       setFilteredContractors(updatedContractors);
@@ -84,10 +84,10 @@ const ContractorsPage: React.FC = () => {
 
   const handleUpdateContractor = async (updatedContractor: Contractor) => {
     try {
-      const updated = await updateContractor(
+      const updated = (await updateContractor(
         updatedContractor._id,
         updatedContractor
-      );
+      )) as Contractor;
       const updatedList = contractors.map((contractor) =>
         contractor._id === updated._id ? updated : contractor
       );

@@ -1,185 +1,132 @@
-const API_URL =  "https://contractorfoil.onrender.com" /* "http://localhost:5173" */;
+import type { AuthSession, Contractor, ContractorInput, ContractorPatch, FieldErrors, User } from '../types';
 
-// Function to get JWT token from localStorage
-const getToken = () => {
-  return localStorage.getItem("userToken");
+const SESSION_KEY = 'contractorfoil.session';
+
+export class ApiError extends Error {
+  readonly status: number | null;
+  readonly fields?: FieldErrors;
+  readonly ambiguous: boolean;
+
+  constructor(message: string, status: number | null = null, fields?: FieldErrors, ambiguous = false) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.fields = fields;
+    this.ambiguous = ambiguous;
+  }
+}
+
+const isUser = (value: unknown): value is User => {
+  if (!value || typeof value !== 'object') return false;
+  const user = value as Record<string, unknown>;
+  return ['_id', 'name', 'email'].every((key) => typeof user[key] === 'string' && user[key] !== '');
 };
 
-// Function to configure headers with JWT token
-const getHeaders = () => {
-  const token = getToken();
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-};
+const getToken = (): string | null => localStorage.getItem('userToken');
 
-// Register new user
-export const registerUser = async (
-  name: string,
-  email: string,
-  password: string,
-  captchaToken?: string
-) => {
-  const bodyData: any = { name, email, password };
-
-  // Sprawdzenie, czy używać reCAPTCHA
-  const useRecaptcha = process.env.REACT_APP_USE_RECAPTCHA === "true";
-
-  if (useRecaptcha) {
-    bodyData.captchaToken = captchaToken;
-  }
-
-  const response = await fetch(`${API_URL}/api/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(bodyData),
-  });
-
-  if (!response.ok) {
-    const errorMessage = await response.text();
-    throw new Error(`Failed to register user: ${errorMessage}`);
-  }
-
-  return await response.json();
-};
-
-// Login user
-export const loginUser = async (email: string, password: string) => {
-  const response = await fetch(`${API_URL}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-
-  if (!response.ok) {
-    const errorMessage = await response.text();
-    throw new Error(`Failed to login: ${errorMessage}`);
-  }
-
-  return await response.json();
-};
-
-export const getUserNameFromToken = (): string | null => {
-  const token = getToken();
-  if (!token) {
-    return null;
-  }
-
+export const getSession = (): AuthSession | null => {
   try {
-    // Podziel token na części (nagłówek, payload, podpis)
-    const base64Url = token.split(".")[1];
-    if (!base64Url) {
-      throw new Error("Invalid token format");
-    }
-
-    // Rozkoduj Base64 (bez paddingu)
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-
-    // Parsuj dane payload jako JSON
-    const payload = JSON.parse(jsonPayload);
-    return payload.name || null; // Zakładając, że imię użytkownika jest zapisane jako `name`
-  } catch (error) {
-    console.error("Failed to decode token:", error);
+    const saved: unknown = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null');
+    if (!isUser(saved) || !('token' in saved) || typeof saved.token !== 'string' || !saved.token || saved.token !== getToken()) return null;
+    return { _id: saved._id, name: saved.name, email: saved.email, token: saved.token };
+  } catch {
     return null;
   }
 };
 
-
-// Logout user
-export const logoutUser = () => {
-  localStorage.removeItem("userToken"); // Remove JWT token from localStorage
-  localStorage.removeItem("userName"); // Remove userName token from localStorage
+export const setSession = (session: AuthSession): void => {
+  localStorage.setItem('userToken', session.token);
+  localStorage.setItem('userName', session.name);
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ _id: session._id, name: session.name, email: session.email, token: session.token }));
 };
 
-// Fetch all contractors
-export const fetchContractors = async () => {
-  const response = await fetch(`${API_URL}/api/contractors`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
+export const logoutUser = (): void => {
+  localStorage.removeItem('userToken');
+  localStorage.removeItem('userName');
+  localStorage.removeItem(SESSION_KEY);
+};
 
+/** Compatibility name: reads the saved profile, never an unsigned JWT payload. */
+export const getUserNameFromToken = (): string | null =>
+  getSession()?.name ?? (getToken() ? localStorage.getItem('userName') : null);
+
+const apiBase = (): string =>
+  import.meta.env.VITE_API_URL?.trim().replace(/\/+$/, '') || (import.meta.env.DEV ? 'http://127.0.0.1:5000' : '');
+
+const fieldErrors = (value: unknown): FieldErrors | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+  return entries.length ? Object.fromEntries(entries) : undefined;
+};
+
+async function request<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  const mutation = method !== 'GET';
+  const token = getToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let response: Response;
+  try {
+    response = await fetch(`${apiBase()}${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}), ...(signal ? { signal } : {}) });
+  } catch (error) {
+    if (!mutation && error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') throw error;
+    throw new ApiError(mutation ? 'The response was lost. Check the saved records before trying again.' : 'Could not reach the server. Please try again.', null, undefined, mutation);
+  }
+
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new ApiError(response.ok ? 'The server returned an unreadable response.' : 'The request could not be completed.', response.status, undefined, mutation && (response.ok || response.status >= 500));
+  }
   if (!response.ok) {
-    const errorMessage = await response.text();
-    throw new Error(`Failed to fetch contractors: ${errorMessage}`);
+    const error = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+    const message = typeof error.message === 'string' && error.message ? error.message.slice(0, 300) : 'The request could not be completed.';
+    throw new ApiError(message, response.status, fieldErrors(error.fields), mutation && response.status >= 500);
   }
+  return data as T;
+}
 
-  return await response.json();
+async function authenticate(path: string, input: object): Promise<AuthSession> {
+  const session = await request<AuthSession>(path, 'POST', input);
+  if (!isUser(session) || typeof session.token !== 'string' || !session.token) {
+    throw new ApiError('The server returned an incomplete session. Sign in to check your account.', 200, undefined, true);
+  }
+  setSession(session);
+  return session;
+}
+
+export const loginUser = (email: string, password: string): Promise<AuthSession> =>
+  authenticate('/api/auth/login', { email, password });
+
+export const registerUser = (name: string, email: string, password: string, captchaToken?: string): Promise<AuthSession> =>
+  authenticate('/api/auth/register', { name, email, password, ...(import.meta.env.VITE_USE_RECAPTCHA === 'true' ? { captchaToken } : {}) });
+
+/** Successful /me reads explicitly refresh the profile saved with the current token. */
+export const fetchCurrentUser = async (): Promise<User> => {
+  const token = getToken();
+  const user = await request<User>('/api/auth/me');
+  if (!isUser(user)) throw new ApiError('The server returned an incomplete profile.', 200);
+  const profile = { _id: user._id, name: user.name, email: user.email };
+  if (token && token === getToken()) setSession({ ...profile, token });
+  return profile;
 };
 
-// Add new contractor
-export const addContractor = async (contractorData: any) => {
-  const response = await fetch(`${API_URL}/api/contractors`, {
-    method: "POST",
-    headers: getHeaders(),
-    body: JSON.stringify(contractorData),
-  });
-
-  if (!response.ok) {
-    const errorMessage = await response.text();
-    throw new Error(`Failed to add contractor: ${errorMessage}`);
-  }
-
-  return await response.json();
+const recordPath = (id: string): string => {
+  if (!id) throw new ApiError('A contractor ID is required.', 400);
+  return `/api/contractors/${encodeURIComponent(id)}`;
 };
 
-// Delete contractor
-export const deleteContractor = async (contractorId: string) => {
-  const response = await fetch(`${API_URL}/api/contractors/${contractorId}`, {
-    method: "DELETE",
-    headers: getHeaders(),
-  });
+export const fetchContractors = (signal?: AbortSignal): Promise<Contractor[]> =>
+  request('/api/contractors', 'GET', undefined, signal);
 
-  if (!response.ok) {
-    const errorMessage = await response.text();
-    throw new Error(`Failed to delete contractor: ${errorMessage}`);
-  }
+export const fetchContractorById = async (id: string, signal?: AbortSignal): Promise<Contractor> =>
+  request(recordPath(id), 'GET', undefined, signal);
 
-  return await response.json();
-};
+export const addContractor = (input: ContractorInput): Promise<Contractor> =>
+  request('/api/contractors', 'POST', input);
 
-// Fetch contractor by ID
-export const fetchContractorById = async (id: string) => {
-  const response = await fetch(`${API_URL}/api/contractors/${id}`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
+export const updateContractor = async (id: string, patch: ContractorPatch): Promise<Contractor> =>
+  request(recordPath(id), 'PUT', patch);
 
-  if (!response.ok) {
-    const errorMessage = await response.text();
-    throw new Error(
-      `Failed to fetch contractor with ID ${id}: ${errorMessage}`
-    );
-  }
-
-  return await response.json();
-};
-
-// Update contractor
-export const updateContractor = async (
-  contractorId: string,
-  contractorData: any
-) => {
-  if (!contractorId) {
-    throw new Error("Contractor ID is required for update");
-  }
-
-  const response = await fetch(`${API_URL}/api/contractors/${contractorId}`, {
-    method: "PUT",
-    headers: getHeaders(),
-    body: JSON.stringify(contractorData),
-  });
-
-  if (!response.ok) {
-    const errorMessage = await response.text();
-    throw new Error(`Failed to update contractor: ${errorMessage}`);
-  }
-
-  return await response.json();
-};
+export const deleteContractor = async (id: string): Promise<{ message: string }> =>
+  request(recordPath(id), 'DELETE');

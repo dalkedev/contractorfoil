@@ -60,7 +60,7 @@ const Register: React.FC = () => {
             // Wyślij token captcha na backend
             const data = await registerUser(name, email, password, captchaToken);
 
-            if (data.error && data.error === "User already exists") {
+            if ("error" in data && data.error === "User already exists") {
                 setError("This email is already registered.");
             } else if (data.token) {
                 navigate("/dashboard"); // Przekierowanie po udanej rejestracji

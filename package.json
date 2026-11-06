@@ -5,5 +5,19 @@
   "repository": "https://github.com/SculptTechProject/contractorfoil.git",
   "author": "SculptTechProject <150788324+SculptTechProject@users.noreply.github.com>",
   "license": "MIT",
-  "private": true
+  "private": true,
+  "scripts": {
+    "setup": "npm ci && npm ci --prefix backend && npm ci --prefix frontend",
+    "dev": "npm run dev --prefix frontend",
+    "dev:api": "npm start --prefix backend",
+    "test": "npm run test --prefix backend && npm run test --prefix frontend",
+    "typecheck": "npm run typecheck --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "check": "npm run test && npm run typecheck && npm run build"
+  },
+  "engines": {
+    "node": "24.22.2",
+    "npm": "11.19.1"
+  },
+  "packageManager": "npm@11.19.1"
 }

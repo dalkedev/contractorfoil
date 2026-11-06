@@ -1,9 +1,11 @@
-import React from "react";
 import { render, screen } from '@testing-library/react';
+import { expect, it } from 'vitest';
 import App from './App';
 
-test('renders learn react link', () => {
+it('opens sign-in when a signed-out visitor loads a nested contractor route', async () => {
+  localStorage.clear();
+  window.history.replaceState({}, '', '/contractors/company-1');
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Login' })).toBeInTheDocument();
+  expect(window.location.pathname).toBe('/login');
 });
