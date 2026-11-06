@@ -1,4 +1,5 @@
 import {
+  Fragment,
   createContext,
   useCallback,
   useContext,
@@ -11,6 +12,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import {
   ApiError,
   fetchCurrentUser,
+  invalidateSession,
   loginUser,
   logoutUser,
   registerUser,
@@ -22,6 +24,7 @@ type SessionContextValue = {
   user: User | null;
   loading: boolean;
   error: boolean;
+  notice: string;
   restore: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   register: (
@@ -39,11 +42,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     Boolean(localStorage.getItem("userToken")),
   );
   const [error, setError] = useState(false);
+  const [notice, setNotice] = useState("");
+  const activeToken = useRef(localStorage.getItem("userToken"));
   const generation = useRef(0);
   const restore = useCallback(async () => {
     const token = localStorage.getItem("userToken");
     const requestGeneration = ++generation.current;
     if (!token) {
+      activeToken.current = null;
+      setUser(null);
+      setError(false);
       setLoading(false);
       return;
     }
@@ -54,7 +62,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       localStorage.getItem("userToken") === token;
     try {
       const profile = await fetchCurrentUser();
-      if (current()) setUser(profile);
+      if (current()) {
+        activeToken.current = token;
+        setUser(profile);
+      }
     } catch (failure) {
       if (!current()) return;
       if (
@@ -69,12 +80,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   useEffect(() => {
+    const changedElsewhere = (event: StorageEvent) => {
+      if (event.storageArea && event.storageArea !== localStorage) return;
+      if (event.key !== null && event.key !== "userToken") return;
+      if (localStorage.getItem("userToken") === activeToken.current) return;
+      generation.current += 1;
+      activeToken.current = null;
+      invalidateSession();
+      setUser(null);
+      setLoading(false);
+      setError(false);
+      setNotice("Your session changed in another tab. Sign in again to continue. Unsaved changes in this tab were cleared.");
+    };
+    window.addEventListener("storage", changedElsewhere);
     void restore();
+    return () => {
+      window.removeEventListener("storage", changedElsewhere);
+      generation.current += 1;
+    };
   }, [restore]);
   const signIn = async (email: string, password: string) => {
-    const session = await loginUser(email, password);
     generation.current += 1;
+    setLoading(false);
+    const session = await loginUser(email, password);
+    activeToken.current = session.token;
     setUser(session);
+    setNotice("");
     setError(false);
     setLoading(false);
   };
@@ -84,22 +115,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     password: string,
     captcha?: string,
   ) => {
-    const session = await registerUser(name, email, password, captcha);
     generation.current += 1;
+    setLoading(false);
+    const session = await registerUser(name, email, password, captcha);
+    activeToken.current = session.token;
     setUser(session);
+    setNotice("");
     setError(false);
     setLoading(false);
   };
   const signOut = () => {
     generation.current += 1;
+    activeToken.current = null;
     logoutUser();
     setUser(null);
+    setNotice("");
     setError(false);
     setLoading(false);
   };
   return (
     <SessionContext.Provider
-      value={{ user, loading, error, restore, signIn, register, signOut }}
+      value={{ user, loading, error, notice, restore, signIn, register, signOut }}
     >
       {children}
     </SessionContext.Provider>
@@ -142,5 +178,5 @@ export function RequireSession({ children }: { children: ReactNode }) {
         state={{ from: location.pathname + location.search }}
       />
     );
-  return children;
+  return <Fragment key={session.user._id}>{children}</Fragment>;
 }

@@ -462,6 +462,77 @@ it("does not let an old session check clear a newer successful sign-in", async (
   expect(localStorage.getItem("userToken")).toBe(account.token);
 });
 
+it("keeps an explicit account login while the legacy session check finishes first", async () => {
+  const other = { _id: "user-2", name: "Taylor Reed", email: "taylor@example.test", token: "explicit-other-token" };
+  let releaseMe!: (response: Response) => void;
+  let releaseLogin!: (response: Response) => void;
+  handler = path => {
+    if (path === "/api/auth/me") return new Promise(resolve => { releaseMe = resolve; });
+    if (path === "/api/auth/login") return new Promise(resolve => { releaseLogin = resolve; });
+    return undefined;
+  };
+  open("/login");
+  fireEvent.change(await screen.findByLabelText("Email address"), { target: { value: other.email } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "FictionalPassword9!" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  await waitFor(() => expect(releaseLogin).toBeTypeOf("function"));
+  await act(async () => { releaseMe(json(account)); });
+  const previousAccountWasShown = screen.queryByText(account.name) !== null;
+  await act(async () => { releaseLogin(json(other)); });
+
+  expect(await screen.findByText(other.name)).toBeInTheDocument();
+  expect(previousAccountWasShown).toBe(false);
+  expect(localStorage.getItem("userToken")).toBe(other.token);
+});
+
+it("hides protected company data when another tab signs out", async () => {
+  open("/contractors/company-1");
+  await screen.findByRole("heading", { name: company.name });
+  localStorage.removeItem("userToken");
+  act(() => window.dispatchEvent(new StorageEvent("storage", {
+    key: "userToken", oldValue: account.token, newValue: null, storageArea: localStorage,
+  })));
+
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: company.name })).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent(/session changed in another tab/i);
+});
+
+it("requires explicit sign-in after another tab changes account without clearing its token", async () => {
+  open("/contractors");
+  await screen.findAllByRole("link", { name: company.name });
+  const other = { _id: "user-2", name: "Taylor Reed", email: "taylor@example.test", token: "other-account-token" };
+  localStorage.setItem("userToken", other.token);
+  localStorage.setItem("contractorfoil.session", JSON.stringify(other));
+  act(() => window.dispatchEvent(new StorageEvent("storage", {
+    key: "userToken", oldValue: account.token, newValue: other.token, storageArea: localStorage,
+  })));
+
+  await screen.findByRole("heading", { name: "Sign in" });
+  expect(screen.queryByRole("link", { name: company.name })).not.toBeInTheDocument();
+  expect(localStorage.getItem("userToken")).toBe(other.token);
+  expect(calls.filter(call => call.path === "/api/auth/me")).toHaveLength(1);
+  records = [{ ...company, _id: "company-2", name: "Second Account Materials" }];
+  handler = path => path === "/api/auth/login" ? json(other) : undefined;
+  fireEvent.change(screen.getByLabelText("Email address"), { target: { value: other.email } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "FictionalPassword9!" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  await screen.findAllByRole("link", { name: "Second Account Materials" });
+  expect(screen.queryByRole("link", { name: company.name })).not.toBeInTheDocument();
+});
+
+it("clears a dirty protected form after another tab clears shared storage", async () => {
+  open("/contractors/company-1/edit");
+  fireEvent.change(await screen.findByLabelText("Notes"), { target: { value: "Private unsaved note" } });
+  localStorage.clear();
+  act(() => window.dispatchEvent(new StorageEvent("storage", { key: null, storageArea: localStorage })));
+
+  await screen.findByRole("heading", { name: "Sign in" });
+  expect(screen.queryByDisplayValue("Private unsaved note")).not.toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(calls.some(call => call.method === "PUT")).toBe(false);
+});
+
 it("keeps a saved company when an earlier list request finishes after creation", async () => {
   let release!: (value: Response) => void;
   let first = true;

@@ -2,6 +2,8 @@ import type { AuthSession, Contractor, ContractorInput, ContractorPatch, FieldEr
 
 const SESSION_KEY = 'contractorfoil.session';
 const REQUEST_TIMEOUT_MS = 20_000;
+let requestToken: string | null | undefined;
+let sessionRevision = 0;
 
 export class ApiError extends Error {
   readonly status: number | null;
@@ -36,12 +38,21 @@ export const getSession = (): AuthSession | null => {
 };
 
 export const setSession = (session: AuthSession): void => {
+  if (getToken() !== session.token) sessionRevision += 1;
+  requestToken = session.token;
   localStorage.setItem('userToken', session.token);
   localStorage.setItem('userName', session.name);
   localStorage.setItem(SESSION_KEY, JSON.stringify({ _id: session._id, name: session.name, email: session.email, token: session.token }));
 };
 
+/** Invalidate this document without deleting another tab's newer credentials. */
+export const invalidateSession = (): void => {
+  requestToken = null;
+  sessionRevision += 1;
+};
+
 export const logoutUser = (): void => {
+  invalidateSession();
   localStorage.removeItem('userToken');
   localStorage.removeItem('userName');
   localStorage.removeItem(SESSION_KEY);
@@ -63,6 +74,11 @@ const fieldErrors = (value: unknown): FieldErrors | undefined => {
 async function request<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const mutation = method !== 'GET';
   const token = getToken();
+  const protectedRecord = path.startsWith('/api/contractors');
+  const startingRevision = sessionRevision;
+  if (protectedRecord && requestToken !== undefined && token !== requestToken) {
+    throw new ApiError('Your session changed. Sign in again before continuing.', 401);
+  }
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
   const controller = new AbortController();
@@ -109,6 +125,9 @@ async function request<T>(path: string, method = 'GET', body?: unknown, signal?:
       const message = typeof error.message === 'string' && error.message ? error.message.slice(0, 300) : 'The request could not be completed.';
       throw new ApiError(message, response.status, fieldErrors(error.fields), mutation && response.status >= 500);
     }
+    if (protectedRecord && (token !== getToken() || startingRevision !== sessionRevision)) {
+      throw new ApiError('Your session changed. Sign in again and check saved records before continuing.', 401, undefined, mutation);
+    }
     return data as T;
   } finally {
     clearTimeout(timeout);
@@ -117,9 +136,14 @@ async function request<T>(path: string, method = 'GET', body?: unknown, signal?:
 }
 
 async function authenticate(path: string, input: object): Promise<AuthSession> {
+  const token = getToken();
+  const startingRevision = sessionRevision;
   const session = await request<AuthSession>(path, 'POST', input);
   if (!isUser(session) || typeof session.token !== 'string' || !session.token) {
     throw new ApiError('The server returned an incomplete session. Sign in to check your account.', 200, undefined, true);
+  }
+  if (token !== getToken() || startingRevision !== sessionRevision) {
+    throw new ApiError('Your session changed before sign-in completed. Sign in again to continue.', 401, undefined, path.endsWith('/register'));
   }
   setSession(session);
   return session;

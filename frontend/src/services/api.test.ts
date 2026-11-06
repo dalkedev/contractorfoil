@@ -6,6 +6,7 @@ const contractor = { _id: 'company-1', name: 'River Reuse', phone: '+48 012 345 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 beforeEach(() => {
+  api.logoutUser();
   localStorage.clear();
   vi.stubEnv('VITE_API_URL', '');
   vi.stubEnv('DEV', true);
@@ -104,7 +105,7 @@ describe('API transport', () => {
   it('uses the local development API and preserves the list document shape', async () => {
     const fetcher = vi.fn().mockResolvedValue(json([contractor]));
     vi.stubGlobal('fetch', fetcher);
-    localStorage.setItem('userToken', session.token);
+    api.setSession(session);
     expect(await api.fetchContractors()).toEqual([contractor]);
     expect(fetcher).toHaveBeenCalledWith('http://127.0.0.1:5000/api/contractors', expect.objectContaining({ method: 'GET', headers: expect.objectContaining({ Authorization: 'Bearer opaque-signed-token' }) }));
   });
@@ -220,6 +221,69 @@ describe('API transport', () => {
 });
 
 describe('session persistence', () => {
+  it('does not cancel an explicit login when a legacy session finishes verification', async () => {
+    localStorage.setItem('userToken', 'legacy-current-token');
+    const other = { _id: 'user-2', name: 'Taylor Reed', email: 'taylor@example.test', token: 'explicit-other-token' };
+    let release!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn((input: string) => input.endsWith('/me')
+      ? Promise.resolve(json(session))
+      : new Promise<Response>(resolve => { release = resolve; })));
+    const login = api.loginUser(other.email, 'fictional-password');
+    await api.fetchCurrentUser();
+    release(json(other));
+
+    await expect(login).resolves.toEqual(other);
+    expect(localStorage.getItem('userToken')).toBe('explicit-other-token');
+  });
+
+  it.each(['replace', 'remove'] as const)('rejects a protected write before sending when another tab can %s its credential', async (change) => {
+    api.setSession(session);
+    if (change === 'replace') localStorage.setItem('userToken', 'other-account-token');
+    else localStorage.removeItem('userToken');
+    const fetcher = vi.fn().mockResolvedValue(json(contractor, 201));
+    vi.stubGlobal('fetch', fetcher);
+
+    await expect(api.addContractor(contractor)).rejects.toMatchObject({ name: 'ApiError', status: 401, ambiguous: false });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(localStorage.getItem('userToken')).toBe(change === 'replace' ? 'other-account-token' : null);
+  });
+
+  it('does not overwrite a newer external session with an older login response', async () => {
+    let release!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { release = resolve; })));
+    const login = api.loginUser(session.email, 'fictional-password');
+    localStorage.setItem('userToken', 'newer-external-token');
+    release(json(session));
+
+    await expect(login).rejects.toMatchObject({ name: 'ApiError', status: 401 });
+    expect(localStorage.getItem('userToken')).toBe('newer-external-token');
+  });
+
+  it('does not restore a session when logout occurs during a pending login', async () => {
+    let release!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { release = resolve; })));
+    const login = api.loginUser(session.email, 'fictional-password');
+    api.logoutUser();
+    release(json(session));
+
+    await expect(login).rejects.toMatchObject({ name: 'ApiError', status: 401 });
+    expect(localStorage.getItem('userToken')).toBeNull();
+  });
+
+  it.each(['read', 'create'] as const)('does not accept an old %s response after an external account switch', async (kind) => {
+    api.setSession(session);
+    let release!: (response: Response) => void;
+    const fetcher = vi.fn(() => new Promise<Response>(resolve => { release = resolve; }));
+    vi.stubGlobal('fetch', fetcher);
+    const pending = kind === 'read' ? api.fetchContractors() : api.addContractor(contractor);
+    localStorage.setItem('userToken', 'other-account-token');
+    release(json(kind === 'read' ? [contractor] : contractor, kind === 'read' ? 200 : 201));
+
+    await expect(pending).rejects.toMatchObject({ name: 'ApiError', status: 401, ambiguous: kind === 'create' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('userToken')).toBe('other-account-token');
+  });
+
   it('persists login across a module reload with the existing storage keys', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(session)));
     expect(await api.loginUser(session.email, 'fictional-password')).toEqual(session);

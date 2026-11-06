@@ -262,6 +262,9 @@ export default function AuthPage({ register = false }: { register?: boolean }) {
               ? "Start your own company register."
               : "Welcome back to your company workspace."}
           </p>
+          {session.notice && (
+            <p className="page-description" role="status">{session.notice}</p>
+          )}
           {register ? (
             <RegisterForm
               onSuccess={() => navigate(destination, { replace: true })}
