@@ -1,3 +1,4 @@
+import ReadErrorState from "../components/ReadErrorState";
 import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useCompany } from "../hooks/useCompany";
@@ -8,13 +9,7 @@ import {
   fetchContractorById,
 } from "../services/api";
 import { formatContactDate, formatPrice } from "../domain/contractors";
-import {
-  ConfirmDialog,
-  ErrorState,
-  Icon,
-  Loading,
-  errorMessage,
-} from "../components/ui";
+import { ConfirmDialog, Icon, Loading, errorMessage } from "../components/ui";
 import { SignInForm } from "./AuthPage";
 
 export default function CompanyDetailPage() {
@@ -100,7 +95,8 @@ export default function CompanyDetailPage() {
     return (
       <>
         {back}
-        <ErrorState
+        <ReadErrorState
+          error={error}
           title={
             error instanceof ApiError && error.status === 404
               ? "Company not found"
@@ -111,11 +107,8 @@ export default function CompanyDetailPage() {
               ? "This record is unavailable or has been deleted."
               : "Check your connection and try again."
           }
-          retry={
-            error instanceof ApiError && error.status === 404
-              ? undefined
-              : retry
-          }
+          retry={retry}
+          hideRetry={error instanceof ApiError && error.status === 404}
         />
       </>
     );

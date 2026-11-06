@@ -1,3 +1,4 @@
+import ReadErrorState from "../components/ReadErrorState";
 import { useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useWorkspace } from "../context/Workspace";
@@ -7,7 +8,7 @@ import {
   formatPrice,
   type ContractorSort,
 } from "../domain/contractors";
-import { EmptyState, ErrorState, Icon, Loading } from "../components/ui";
+import { EmptyState, Icon, Loading } from "../components/ui";
 import type { Contractor } from "../types";
 
 const sorts: { value: ContractorSort; label: string }[] = [
@@ -142,7 +143,8 @@ export default function CompaniesPage() {
         {!loaded && loading ? (
           <Loading />
         ) : error ? (
-          <ErrorState
+          <ReadErrorState
+            error={error}
             title="Could not load companies"
             message="Check your connection and try again. Your saved records have not been changed."
             retry={() => void load()}

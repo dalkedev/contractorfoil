@@ -1,3 +1,4 @@
+import ReadErrorState from "../components/ReadErrorState";
 import { Link } from "react-router-dom";
 import { useSession } from "../context/Session";
 import {
@@ -5,7 +6,7 @@ import {
   formatContactDate,
 } from "../domain/contractors";
 import { useCompanyList } from "./CompaniesPage";
-import { EmptyState, ErrorState, Icon, Loading } from "../components/ui";
+import { EmptyState, Icon, Loading } from "../components/ui";
 
 export default function OverviewPage() {
   const { user } = useSession();
@@ -36,7 +37,8 @@ export default function OverviewPage() {
       {!loaded && loading ? (
         <Loading />
       ) : error ? (
-        <ErrorState
+        <ReadErrorState
+          error={error}
           title="Could not load your overview"
           message="Check your connection and try again."
           retry={() => void load()}

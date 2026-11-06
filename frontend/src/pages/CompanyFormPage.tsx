@@ -1,3 +1,4 @@
+import ReadErrorState from "../components/ReadErrorState";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useBlocker, useNavigate, useParams } from "react-router-dom";
 import { useCompany } from "../hooks/useCompany";
@@ -22,13 +23,7 @@ import type {
   ContractorPatch,
   FieldErrors,
 } from "../types";
-import {
-  ConfirmDialog,
-  ErrorState,
-  Icon,
-  Loading,
-  errorMessage,
-} from "../components/ui";
+import { ConfirmDialog, Icon, Loading, errorMessage } from "../components/ui";
 import { SignInForm } from "./AuthPage";
 
 function EditFormLoader({ id }: { id: string }) {
@@ -42,7 +37,8 @@ function EditFormLoader({ id }: { id: string }) {
           <Icon name="back" />
           Back to companies
         </Link>
-        <ErrorState
+        <ReadErrorState
+          error={error}
           title={
             error instanceof ApiError && error.status === 404
               ? "Company not found"

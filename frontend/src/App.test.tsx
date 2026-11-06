@@ -491,3 +491,73 @@ it("keeps a saved company when an earlier list request finishes after creation",
     (await screen.findAllByRole("link", { name: "Riverbank Polymers" })).length,
   ).toBeGreaterThan(0);
 });
+
+it.each([
+  ["/dashboard", "/api/contractors"],
+  ["/contractors?q=Northline&sort=name-desc", "/api/contractors"],
+  ["/contractors/company-1", "/api/contractors/company-1"],
+  ["/contractors/company-1/edit", "/api/contractors/company-1"],
+])(
+  "recovers an expired read session in place at %s",
+  async (route, resource) => {
+    let authenticated = false;
+    handler = (path, method, body) => {
+      if (path === resource && method === "GET" && !authenticated)
+        return json({ message: "Sign in to continue." }, 401);
+      if (path === "/api/auth/login") {
+        if (body.password !== "ExamplePassword1!")
+          return json({ message: "Email or password is incorrect." }, 401);
+        authenticated = true;
+        return json(account);
+      }
+      return undefined;
+    };
+    open(route);
+    await screen.findByRole("heading", { name: "Your session expired" });
+    expect(window.location.pathname + window.location.search).toBe(route);
+    expect(screen.getByLabelText("Email address")).toHaveValue(account.email);
+    expect(screen.getByLabelText("Email address")).toHaveAttribute("readonly");
+    expect(
+      calls.filter((call) => call.path === resource && call.method === "GET"),
+    ).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "wrong-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(
+      await screen.findByText("Email or password is incorrect."),
+    ).toBeInTheDocument();
+    expect(window.location.pathname + window.location.search).toBe(route);
+    expect(
+      calls.filter((call) => call.path === resource && call.method === "GET"),
+    ).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "ExamplePassword1!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Your session expired" }),
+      ).not.toBeInTheDocument(),
+    );
+    if (route.endsWith("/edit"))
+      expect(await screen.findByLabelText("Notes")).toHaveValue(
+        "Use the side entrance.",
+      );
+    else if (route === "/contractors/company-1")
+      expect(
+        await screen.findByRole("heading", { name: company.name }),
+      ).toBeInTheDocument();
+    else
+      expect(
+        (await screen.findAllByRole("link", { name: company.name })).length,
+      ).toBeGreaterThan(0);
+    expect(window.location.pathname + window.location.search).toBe(route);
+    if (route.startsWith("/contractors?")) {
+      expect(screen.getByLabelText("Search companies")).toHaveValue(
+        "Northline",
+      );
+      expect(screen.getByLabelText("Sort companies")).toHaveValue("name-desc");
+    }
+  },
+);

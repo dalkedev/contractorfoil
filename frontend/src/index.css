@@ -2290,3 +2290,9 @@ textarea[aria-invalid="true"] {
     scroll-behavior: auto !important;
   }
 }
+
+.read-session-form {
+  width: min(100%, 360px);
+  margin: 0 auto;
+  text-align: left;
+}
