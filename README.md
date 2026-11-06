@@ -4,6 +4,8 @@ ContractorFoil keeps company contact details, notes, a contact date, and current
 
 The frontend is a React and TypeScript SPA built with Vite. The API uses Express, Mongoose, MongoDB, and JWT authentication.
 
+The first tagged preview is **1.0.0-rc.1**, intended for local testing and review. The Vercel frontend build is verified; hosted API integration remains unverified. See the [changelog](CHANGELOG.md) and [hosting guide](docs/hosting.md).
+
 ## Workspace
 
 Desktop and mobile views use the same company records and current prices. The screenshots below show fictional data from a local instance.
