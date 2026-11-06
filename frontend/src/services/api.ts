@@ -75,7 +75,8 @@ async function request<T>(path: string, method = 'GET', body?: unknown, signal?:
   let data: unknown;
   try {
     data = await response.json();
-  } catch {
+  } catch (error) {
+    if (!mutation && error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') throw error;
     throw new ApiError(response.ok ? 'The server returned an unreadable response.' : 'The request could not be completed.', response.status, undefined, mutation && (response.ok || response.status >= 500));
   }
   if (!response.ok) {

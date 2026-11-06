@@ -77,6 +77,39 @@ describe('API transport', () => {
     await expect(api.fetchContractors()).rejects.toMatchObject({ name: 'AbortError' });
   });
 
+  it('preserves cancellation while reading a successful GET response body', async () => {
+    const controller = new AbortController();
+    const cancellation = new DOMException('Cancelled', 'AbortError');
+    let startReading!: () => void;
+    const reading = new Promise<void>((resolve) => { startReading = resolve; });
+    const response = new Response(new ReadableStream({
+      start(stream) {
+        controller.signal.addEventListener('abort', () => stream.error(cancellation), { once: true });
+      },
+      pull() { startReading(); },
+    }, { highWaterMark: 0 }), { status: 200 });
+    const fetcher = vi.fn().mockResolvedValue(response);
+    vi.stubGlobal('fetch', fetcher);
+
+    const request = api.fetchContractors(controller.signal);
+    await reading;
+    controller.abort();
+
+    await expect(request).rejects.toBe(cancellation);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a cancelled successful mutation body ambiguous without retrying', async () => {
+    const response = new Response(new ReadableStream({
+      start(stream) { stream.error(new DOMException('Cancelled', 'AbortError')); },
+    }), { status: 201 });
+    const fetcher = vi.fn().mockResolvedValue(response);
+    vi.stubGlobal('fetch', fetcher);
+
+    await expect(api.addContractor(contractor)).rejects.toMatchObject({ name: 'ApiError', status: 201, ambiguous: true });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it('sends sparse updates without rounding, filling fields or removing matching echoed IDs', async () => {
     const fetcher = vi.fn().mockResolvedValue(json(contractor));
     vi.stubGlobal('fetch', fetcher);
