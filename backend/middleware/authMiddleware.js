@@ -1,23 +1,20 @@
-const jwt = require("jsonwebtoken");
-const User = require("../models/userModel");
+const jwt = require('jsonwebtoken');
+const User = require('../models/userModel');
+const { ApiError } = require('../errors');
 
-const protect = async (req, res, next) => {
-  let token;
-
-  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-    try {
-      token = req.headers.authorization.split(" ")[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = await User.findById(decoded.id).select("-password"); // Pobranie użytkownika
-      next();
-    } catch (error) {
-      res.status(401).json({ message: "Not authorized, token failed" });
-    }
-  }
-
-  if (!token) {
-    return res.status(401).json({ message: "Not authorized, no token" });
-  }
-};
+async function protect(req, res, next) {
+  const authorization = req.get('authorization');
+  const match = typeof authorization === 'string' && /^Bearer ([^\s]+)$/i.exec(authorization);
+  const unauthorized = () => new ApiError(401, 'UNAUTHORIZED', 'Sign in to continue.');
+  if (!match) throw unauthorized();
+  let decoded;
+  try { decoded = jwt.verify(match[1], req.app.locals.config.jwtSecret, { algorithms: ['HS256'] }); }
+  catch { throw unauthorized(); }
+  if (!decoded || typeof decoded.id !== 'string' || !/^[a-fA-F0-9]{24}$/.test(decoded.id)) throw unauthorized();
+  const user = await User.findById(decoded.id).select('_id name email');
+  if (!user) throw unauthorized();
+  req.user = user;
+  next();
+}
 
 module.exports = { protect };

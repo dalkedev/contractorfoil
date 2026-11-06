@@ -1,15 +1,11 @@
-const express = require("express");
-const { registerUser, loginUser, getMe } = require("../controllers/authController");
-const { protect } = require("../middleware/authMiddleware");
+const express = require('express');
+const { registerUser, loginUser, getMe } = require('../controllers/authController');
+const { protect } = require('../middleware/authMiddleware');
+const { asyncHandler } = require('../errors');
 const router = express.Router();
 
-// Rejestracja użytkownika
-router.post("/register", registerUser);
-
-// Logowanie użytkownika
-router.post("/login", loginUser);
-
-// Trasa do pobrania informacji o zalogowanym użytkowniku
-router.get("/me", protect, getMe);
+router.post('/register', asyncHandler(registerUser));
+router.post('/login', asyncHandler(loginUser));
+router.get('/me', asyncHandler(protect), asyncHandler(getMe));
 
 module.exports = router;
