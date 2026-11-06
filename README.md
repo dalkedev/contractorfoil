@@ -4,6 +4,19 @@ ContractorFoil keeps company contact details, notes, a contact date, and current
 
 The frontend is a React and TypeScript SPA built with Vite. The API uses Express, Mongoose, MongoDB, and JWT authentication.
 
+## Workspace
+
+Desktop and mobile views use the same company records and current prices. The screenshots below show fictional data from a local instance.
+
+![Companies workspace on desktop](docs/images/companies-desktop.png)
+
+<details>
+<summary>Mobile workspace</summary>
+
+<img src="docs/images/companies-mobile.png" alt="Companies workspace on mobile" width="390" />
+
+</details>
+
 ## Run locally
 
 Use Node **24.22.2**, npm **11.19.1**, and a local MongoDB instance listening on `127.0.0.1:27017`. Runtime versions are recorded in `.nvmrc`, `.node-version`, and the package manifests.
