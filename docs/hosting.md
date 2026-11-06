@@ -12,19 +12,25 @@ Use a separate API and database for previews. Do not allow all preview domains t
 
 ## Vercel configuration
 
-The root [vercel.json](../vercel.json) targets a project whose Root Directory is the repository root:
+Two Vercel Root Directory settings are supported. Commands and output paths are relative to the selected directory:
 
-| Setting | Value |
-| --- | --- |
-| Install | `npm ci --prefix frontend` |
-| Build | `npm run build` |
-| Output | `frontend/dist` |
+| Setting | Repository root | `frontend` |
+| --- | --- | --- |
+| Configuration | [vercel.json](../vercel.json) | [frontend/vercel.json](../frontend/vercel.json) |
+| Framework | Other | Vite |
+| Install | `npm ci --prefix frontend` | `npm ci` |
+| Build | `npm run build` | `npm run build` |
+| Output | `frontend/dist` | `dist` |
 
-This installs and builds the frontend package. It does not deploy the backend. Configure `VITE_API_URL` and any optional public CAPTCHA settings for the intended environment before building.
+The existing hosted frontend uses `frontend` as its Root Directory. Its local configuration selects Vite and uses that directory's committed lockfile. Keep this setting when updating the project; no dashboard change is required. A new project may use either layout above.
+
+Do not use `npm ci --prefix frontend` with Root Directory `frontend`: that looks for a nonexistent nested `frontend/frontend/package-lock.json` and fails with npm's lockfile usage error. Likewise, output is `dist` within the frontend root, not `frontend/dist`.
+
+Both configurations install and build only the frontend package. Neither deploys the backend. Configure `VITE_API_URL` and any optional public CAPTCHA settings for the intended environment before building.
 
 The rewrites serve `index.html` for `/`, `/login`, `/register`, `/dashboard`, and `/contractors/:path*`, including create, detail, and edit routes. This lets direct navigation and refresh reach React Router. Add a rewrite when introducing another top-level application route. Static assets and `/api` or `/health` paths are outside these rewrites, so an absent API route cannot masquerade as a successful SPA document.
 
-The configuration follows Vercel's [static configuration reference](https://vercel.com/docs/project-configuration/vercel-json) and [Vite SPA guidance](https://vercel.com/docs/frameworks/frontend/vite#using-vite-to-make-spas). It is source configuration; hosting settings and deployed behavior need verification in the target environment.
+The configurations follow Vercel's [Root Directory settings](https://vercel.com/docs/builds/configure-a-build#root-directory), [static configuration reference](https://vercel.com/docs/project-configuration/vercel-json) and [Vite SPA guidance](https://vercel.com/docs/frameworks/frontend/vite#using-vite-to-make-spas). Source configuration does not establish deployed behavior; verify the next deployment in the target environment.
 
 ## Verify a hosting change
 

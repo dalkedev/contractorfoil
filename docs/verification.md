@@ -34,7 +34,9 @@ The README screenshots were captured from the same functional build at 1440×900
 
 ## Before a release
 
-Local acceptance does not establish hosted behavior. A failed Vercel preview check remained unresolved: deployment Build Logs were not available, and the dashboard required authentication. The configured install and build commands also passed in a fresh tracked-source export, but this does not establish why the hosted check failed. Do not infer a deployment fix from the local results.
+Local acceptance does not establish hosted behavior. The initial Vercel preview failed, and its cause was unknown during the checks above. Later deployment evidence identified Root Directory `frontend` while installation still ran `npm ci --prefix frontend`. That combination reproduced npm's missing-lockfile usage error in a fresh tracked-source export: the command looked in a nonexistent nested `frontend/frontend` directory.
+
+A frontend-local `vercel.json` now selects Vite and runs `npm ci` followed by `npm run build`, with output `dist`. The repository-root configuration remains available for projects that use the repository root. Both layouts were installed and built from separate clean tracked-source exports. A successful local build does not establish that the next hosted deployment or its API integration works.
 
 Before releasing, inspect the actual hosting logs, confirm the intended frontend API origin and isolated preview API/database, and follow the [hosting checks](hosting.md#verify-a-hosting-change). No production deployment or database migration was performed during this verification.
 
